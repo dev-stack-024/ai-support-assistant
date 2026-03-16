@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Support Assistant</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #layout {
+      width: 100%;
+      max-width: 1100px;
+      height: 100dvh;
+      display: flex;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    /* ── Chat panel ── */
+    #app {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-width: 0;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #1e2535;
+    }
+
+    header .dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; }
+
+    header h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #94a3b8;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding-right: 0.25rem;
+      scroll-behavior: smooth;
+    }
+
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 4px; }
+
+    .bubble {
+      max-width: 80%;
+      padding: 0.65rem 1rem;
+      border-radius: 1rem;
+      line-height: 1.55;
+      font-size: 0.92rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .bubble.user        { align-self: flex-end; background: #3b82f6; color: #fff; border-bottom-right-radius: 0.25rem; }
+    .bubble.assistant   { align-self: flex-start; background: #1e2535; color: #e2e8f0; border-bottom-left-radius: 0.25rem; }
+    .bubble.error       { align-self: flex-start; background: #3b1f1f; color: #f87171; border-bottom-left-radius: 0.25rem; }
+    .bubble.typing      { align-self: flex-start; background: #1e2535; color: #64748b; font-style: italic; }
+
+    #input-row { display: flex; gap: 0.5rem; }
+
+    #user-input {
+      flex: 1;
+      background: #1e2535;
+      border: 1px solid #2d3748;
+      border-radius: 0.75rem;
+      color: #e2e8f0;
+      font-size: 0.92rem;
+      padding: 0.65rem 1rem;
+      resize: none;
+      outline: none;
+      line-height: 1.5;
+      max-height: 120px;
+      transition: border-color 0.2s;
+    }
+
+    #user-input:focus { border-color: #3b82f6; }
+    #user-input::placeholder { color: #475569; }
+
+    #send-btn {
+      background: #3b82f6;
+      border: none;
+      border-radius: 0.75rem;
+      color: #fff;
+      cursor: pointer;
+      padding: 0 1.1rem;
+      font-size: 1.1rem;
+      transition: background 0.2s, opacity 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #send-btn:hover { background: #2563eb; }
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    footer { text-align: center; font-size: 0.72rem; color: #334155; }
+
+    /* ── Reasoning panel ── */
+    #reasoning-panel {
+      width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      border-left: 1px solid #1e2535;
+      padding-left: 1rem;
+      overflow-y: auto;
+    }
+
+    #reasoning-panel h2 {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid #1e2535;
+    }
+
+    #reasoning-panel::-webkit-scrollbar { width: 4px; }
+    #reasoning-panel::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 4px; }
+
+    .step-card {
+      background: #1e2535;
+      border-radius: 0.6rem;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .step-card .step-num {
+      font-size: 0.68rem;
+      color: #475569;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .step-row { display: flex; flex-direction: column; gap: 0.1rem; }
+
+    .step-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .step-label.thought     { color: #a78bfa; }
+    .step-label.action      { color: #38bdf8; }
+    .step-label.action-input{ color: #38bdf8; }
+    .step-label.observation { color: #34d399; }
+    .step-label.final       { color: #fbbf24; }
+
+    .step-value {
+      color: #cbd5e1;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.45;
+    }
+
+    #no-steps {
+      font-size: 0.8rem;
+      color: #334155;
+      text-align: center;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="layout">
+
+    <!-- Chat -->
+    <div id="app">
+      <header>
+        <span class="dot"></span>
+        <h1>AI Support Assistant</h1>
+      </header>
+
+      <div id="messages" role="log" aria-live="polite" aria-label="Chat messages"></div>
+
+      <div id="input-row">
+        <textarea id="user-input" rows="1" placeholder="Ask me anything…" aria-label="Your message"></textarea>
+        <button id="send-btn" aria-label="Send message">&#9658;</button>
+      </div>
+
+      <footer>Powered by LLaMA via OpenRouter</footer>
+    </div>
+
+    <!-- Reasoning trace -->
+    <div id="reasoning-panel">
+      <h2>Agent Reasoning</h2>
+      <p id="no-steps">Steps will appear here after a response.</p>
+    </div>
+
+  </div>
+
+  <script>
+    const API_URL = "http://localhost:8000/chat/";
+
+    const messagesEl  = document.getElementById("messages");
+    const inputEl     = document.getElementById("user-input");
+    const sendBtn     = document.getElementById("send-btn");
+    const reasoningEl = document.getElementById("reasoning-panel");
+    const noStepsEl   = document.getElementById("no-steps");
+
+    const history = [];
+
+    function addBubble(role, text) {
+      const div = document.createElement("div");
+      div.className = `bubble ${role}`;
+      div.textContent = text;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
+    }
+
+    function setTyping(visible) {
+      const existing = messagesEl.querySelector(".typing");
+      if (visible && !existing) addBubble("typing", "Assistant is thinking…");
+      else if (!visible && existing) existing.remove();
+    }
+
+    function setLoading(loading) {
+      sendBtn.disabled = loading;
+      inputEl.disabled = loading;
+      setTyping(loading);
+    }
+
+    /** Render reasoning steps in the side panel. */
+    function renderSteps(steps) {
+      // Remove old step cards
+      reasoningEl.querySelectorAll(".step-card").forEach(el => el.remove());
+
+      if (!steps || steps.length === 0) {
+        noStepsEl.style.display = "block";
+        return;
+      }
+
+      noStepsEl.style.display = "none";
+
+      steps.forEach(s => {
+        const card = document.createElement("div");
+        card.className = "step-card";
+
+        card.innerHTML = `<span class="step-num">Step ${s.step}</span>`;
+
+        const rows = [
+          { label: "Thought",      cls: "thought",      val: s.thought },
+          { label: "Action",       cls: "action",       val: s.action },
+          { label: "Action Input", cls: "action-input", val: s.action_input },
+          { label: "Observation",  cls: "observation",  val: s.observation },
+          { label: "Final Answer", cls: "final",        val: s.final_answer },
+        ];
+
+        rows.forEach(({ label, cls, val }) => {
+          if (!val) return;
+          const row = document.createElement("div");
+          row.className = "step-row";
+          row.innerHTML = `
+            <span class="step-label ${cls}">${label}</span>
+            <span class="step-value"></span>
+          `;
+          row.querySelector(".step-value").textContent = val;
+          card.appendChild(row);
+        });
+
+        reasoningEl.appendChild(card);
+      });
+
+      reasoningEl.scrollTop = reasoningEl.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      addBubble("user", text);
+      history.push({ role: "user", content: text });
+      inputEl.value = "";
+      inputEl.style.height = "auto";
+
+      setLoading(true);
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: history }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          const msg = Array.isArray(data.detail)
+            ? data.detail.map(e => `${e.field}: ${e.message}`).join("\n")
+            : data.detail ?? "Unknown error";
+          addBubble("error", `Error ${res.status}: ${msg}`);
+        } else {
+          addBubble("assistant", data.reply);
+          history.push({ role: "assistant", content: data.reply });
+          renderSteps(data.reasoning_steps);
+        }
+      } catch (err) {
+        addBubble("error", "Could not reach the server. Is it running on localhost:8000?");
+      } finally {
+        setLoading(false);
+        inputEl.focus();
+      }
+    }
+
+    inputEl.addEventListener("input", () => {
+      inputEl.style.height = "auto";
+      inputEl.style.height = `${inputEl.scrollHeight}px`;
+    });
+
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+
+    sendBtn.addEventListener("click", sendMessage);
+
+    addBubble("assistant", "Hi! I'm your AI support assistant. How can I help you today?");
+  </script>
+</body>
+</html>
